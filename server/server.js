@@ -36,10 +36,6 @@ app.use(
   })
 );
 
-// Serve frontend
-const publicDir = path.join(__dirname, "..", "public");
-app.use(express.static(publicDir));
-
 // -----------------------------
 // Password storage helpers
 // -----------------------------
@@ -58,7 +54,8 @@ function normalizePasswords(data) {
   for (const id of FIELD_IDS) {
     const v = obj[id];
     if (typeof v === "string") out[id] = { hash: v, unlocked: false };
-    else if (v && typeof v === "object") out[id] = { hash: v.hash || "", unlocked: !!v.unlocked };
+    else if (v && typeof v === "object")
+      out[id] = { hash: v.hash || "", unlocked: !!v.unlocked };
     else out[id] = { hash: "", unlocked: false };
   }
   return out;
@@ -105,16 +102,38 @@ function requireAdmin(req, res, next) {
   const creds = parseBasicAuth(req.headers.authorization);
   if (!creds || creds.user !== ADMIN_USER || creds.pass !== ADMIN_PASS) {
     res.setHeader("WWW-Authenticate", 'Basic realm="Admin"');
-    return res.status(401).json({ ok: false, error: "Unauthorized" });
+
+    // If it's an API request, return JSON. If it's a page/file, return text.
+    if (req.path.startsWith("/api/")) {
+      return res.status(401).json({ ok: false, error: "Unauthorized" });
+    }
+    return res.status(401).send("Unauthorized");
   }
   next();
 }
 
 // -----------------------------
+// Protect admin pages + admin API BEFORE static serving
+// -----------------------------
+app.use((req, res, next) => {
+  const p = req.path;
+
+  // Protect admin UI assets + admin endpoints
+  if (p === "/admin.html" || p === "/admin.js" || p.startsWith("/api/admin")) {
+    return requireAdmin(req, res, next);
+  }
+  next();
+});
+
+// -----------------------------
+// Serve frontend
+// -----------------------------
+const publicDir = path.join(__dirname, "..", "public");
+app.use(express.static(publicDir));
+
+// -----------------------------
 // Public API
 // -----------------------------
-
-// Frontend calls this on load to mark unlocked fields
 app.get("/api/status", (req, res) => {
   passwords = loadPasswords();
   const status = {};
@@ -122,7 +141,6 @@ app.get("/api/status", (req, res) => {
   res.json({ ok: true, status });
 });
 
-// Verify password. If correct => persist unlocked=true
 app.post("/api/verify", async (req, res) => {
   const { fieldId, password } = req.body || {};
 
@@ -147,10 +165,9 @@ app.post("/api/verify", async (req, res) => {
 });
 
 // -----------------------------
-// Admin API
+// Admin API (already protected by middleware above)
 // -----------------------------
-
-app.get("/api/admin/state", requireAdmin, (req, res) => {
+app.get("/api/admin/state", (req, res) => {
   passwords = loadPasswords();
   const state = {};
   for (const id of FIELD_IDS) {
@@ -159,8 +176,7 @@ app.get("/api/admin/state", requireAdmin, (req, res) => {
   res.json({ ok: true, state });
 });
 
-// Set/replace password (locks field when changed)
-app.post("/api/admin/set", requireAdmin, async (req, res) => {
+app.post("/api/admin/set", async (req, res) => {
   const { fieldId, password } = req.body || {};
 
   if (!FIELD_IDS.includes(fieldId)) return res.status(400).json({ ok: false, error: "Invalid fieldId" });
@@ -178,8 +194,7 @@ app.post("/api/admin/set", requireAdmin, async (req, res) => {
   }
 });
 
-// Reset/lock one field or all fields (does NOT delete hashes)
-app.post("/api/admin/reset", requireAdmin, (req, res) => {
+app.post("/api/admin/reset", (req, res) => {
   const { fieldId } = req.body || {};
   passwords = loadPasswords();
 
