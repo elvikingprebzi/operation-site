@@ -7,7 +7,19 @@
   <link rel="stylesheet" href="./styles.css" />
   <link rel="stylesheet" href="./admin.css" />
 </head>
+
 <body>
+
+<script>
+  // ===== KID-PROOF GATE (SIMPLE) =====
+  const ADMIN_PASSWORD = "letmein123"; // change this
+  if (prompt("Admin password:") !== ADMIN_PASSWORD) {
+    document.documentElement.innerHTML =
+      "<h2 style='color:red;text-align:center;margin-top:40px;'>Access denied</h2>";
+    throw new Error("Blocked");
+  }
+</script>
+
   <header class="topbar">
     <div class="brand">SYSTEM ADMIN</div>
     <nav class="nav">
@@ -69,6 +81,5 @@
     </div>
   </main>
 
-  <script src="./admin.js"></script>
 </body>
 </html>
