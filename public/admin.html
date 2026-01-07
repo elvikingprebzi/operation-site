@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Admin • Operation</title>
+  <link rel="stylesheet" href="./styles.css" />
+  <link rel="stylesheet" href="./admin.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">SYSTEM ADMIN</div>
+    <nav class="nav">
+      <a href="/" class="navlink">BACK TO PANEL</a>
+    </nav>
+  </header>
+
+  <div class="rule"></div>
+
+  <main class="wrap adminwrap">
+    <div class="admincard">
+      <h2>Field passwords</h2>
+      <p class="sub">Browser login popup = admin protection. Keep your password strong.</p>
+
+      <div class="row">
+        <button id="refresh" class="btn">Refresh status</button>
+        <button id="clearAll" class="btn btnGhost">Clear ALL passwords</button>
+        <span id="msg" class="msg"></span>
+      </div>
+
+      <div id="statusGrid" class="statusGrid"></div>
+
+      <hr class="hr" />
+
+      <h3>Set / change password</h3>
+      <div class="form">
+        <label>
+          Field
+          <select id="fieldId"></select>
+        </label>
+
+        <label>
+          Password
+          <input id="password" class="input" type="text" autocomplete="off" />
+        </label>
+
+        <button id="setBtn" class="btn">Save password</button>
+        <button id="clearBtn" class="btn btnGhost">Clear field</button>
+      </div>
+
+      <hr class="hr" />
+
+      <h3>Test a password</h3>
+      <div class="form">
+        <label>
+          Field
+          <select id="testFieldId"></select>
+        </label>
+
+        <label>
+          Password to test
+          <input id="testPassword" class="input" type="text" autocomplete="off" />
+        </label>
+
+        <button id="testBtn" class="btn">Test</button>
+      </div>
+
+      <p class="sub">Reset to red (UI) is on the main page via each field’s “Reset” button.</p>
+    </div>
+  </main>
+
+  <script src="./admin.js"></script>
+</body>
+</html>
