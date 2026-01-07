@@ -164,3 +164,38 @@ body{
   border-color: rgba(34,255,102,0.6);
   color: var(--green);
 }
+/* ---------- Mobile / responsive ---------- */
+@media (max-width: 980px){
+  .grid{
+    grid-template-columns: repeat(2, minmax(200px, 1fr));
+    gap: 28px 24px;
+  }
+  .wrap{ padding: 28px 18px 46px; }
+  .topbar{ padding: 18px 18px 10px; }
+  .brand{ font-size: 28px; letter-spacing: 2px; }
+  .label{ font-size: 20px; }
+}
+
+@media (max-width: 640px){
+  .topbar{
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .brand{
+    font-size: 22px;
+    letter-spacing: 1.5px;
+    line-height: 1.1;
+  }
+  .nav{ padding-bottom: 0; gap: 14px; }
+  .navlink{ font-size: 13px; }
+
+  .wrap{ padding: 18px 14px 38px; }
+  .grid{
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+
+  .label{ font-size: 18px; }
+  .input{ height: 48px; font-size: 16px; }
+}
