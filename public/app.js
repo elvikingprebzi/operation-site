@@ -7,9 +7,7 @@ async function verifyField(fieldId, password) {
   return res.json();
 }
 
-// Shows the field as unlocked.
-// IMPORTANT: does NOT auto-navigate by default.
-function setDecrypted(card) {
+function markUnlocked(card) {
   card.classList.add("decrypted");
 
   const badge = card.querySelector(".badge");
@@ -18,16 +16,30 @@ function setDecrypted(card) {
 
   if (badge) badge.textContent = "Decrypted";
   if (check) check.style.display = "inline";
+
+  // IMPORTANT: keep input visible + usable (your requirement)
   if (input) {
-    input.value = "••••••••••";
-    input.disabled = true;
+    input.type = "password";
+    input.disabled = false;
+    input.placeholder = "Enter encryption";
   }
 }
 
-// If you want to open the subpage with image when just unlocked,
-// leave this enabled:
-function navigateToDecrypted(fieldId) {
-  window.location.href = `/decrypted.html?field=${encodeURIComponent(fieldId)}`;
+function markLocked(card) {
+  card.classList.remove("decrypted");
+
+  const badge = card.querySelector(".badge");
+  const check = card.querySelector(".check");
+  const input = card.querySelector(".input");
+
+  if (badge) badge.textContent = "Locked";
+  if (check) check.style.display = "none";
+  if (input) {
+    input.disabled = false;
+    input.value = "";
+    input.type = "password";
+    input.placeholder = "Enter encryption";
+  }
 }
 
 async function hydrateUnlockedState() {
@@ -36,41 +48,49 @@ async function hydrateUnlockedState() {
     const data = await res.json();
     if (!data.ok) return;
 
-    for (const [fieldId, isUnlocked] of Object.entries(data.status || {})) {
-      if (!isUnlocked) continue;
+    // default everything locked first (ensures UI always shows inputs)
+    document.querySelectorAll(".card").forEach(markLocked);
+
+    for (const [fieldId, unlocked] of Object.entries(data.status || {})) {
       const card = document.querySelector(`.card[data-field="${fieldId}"]`);
-      if (card) setDecrypted(card);
+      if (!card) continue;
+      if (unlocked) markUnlocked(card);
+      else markLocked(card);
     }
   } catch (e) {
-    console.warn("Failed to load status", e);
+    // If status fails, still keep UI usable
+    console.warn("Status load failed", e);
   }
 }
 
-function wireCards() {
-  const cards = document.querySelectorAll(".card");
+function navigateToDecrypted(fieldId) {
+  // You said you want an image page to open on success.
+  // If you haven't wired decrypted.html yet, you can comment this out.
+  window.location.href = `/decrypted.html?field=${encodeURIComponent(fieldId)}`;
+}
 
-  for (const card of cards) {
+function wireCards() {
+  document.querySelectorAll(".card").forEach((card) => {
     const fieldId = card.getAttribute("data-field");
     const input = card.querySelector(".input");
     const btn = card.querySelector(".btn");
 
     const submit = async () => {
-      const password = (input.value || "").trim();
-      if (!password) return;
+      const pwd = (input.value || "").trim();
+      if (!pwd) return;
 
       btn.disabled = true;
-      const oldText = btn.textContent;
+      const old = btn.textContent;
       btn.textContent = "…";
 
       try {
-        const data = await verifyField(fieldId, password);
-        if (data.ok) {
-          setDecrypted(card);
-          // Only navigate on *fresh* unlock:
+        const result = await verifyField(fieldId, pwd);
+        if (result.ok) {
+          input.value = "";
+          markUnlocked(card);
           navigateToDecrypted(fieldId);
         } else {
           input.value = "";
-          input.focus();
           card.classList.add("shake");
           setTimeout(() => card.classList.remove("shake"), 250);
         }
@@ -78,7 +98,7 @@ function wireCards() {
         console.warn(e);
       } finally {
         btn.disabled = false;
-        btn.textContent = oldText;
+        btn.textContent = old;
       }
     };
 
@@ -86,7 +106,7 @@ function wireCards() {
     input.addEventListener("keydown", (e) => {
       if (e.key === "Enter") submit();
     });
-  }
+  });
 }
 
 document.addEventListener("DOMContentLoaded", async () => {

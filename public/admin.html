@@ -3,72 +3,55 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Admin • Operation</title>
+  <title>Admin</title>
   <link rel="stylesheet" href="./styles.css" />
-  <link rel="stylesheet" href="./admin.css" />
 </head>
 <body>
   <header class="topbar">
     <div class="brand">SYSTEM ADMIN</div>
     <nav class="nav">
-      <a href="/" class="navlink">BACK TO PANEL</a>
+      <a class="navlink" href="/" target="_blank" rel="noopener">PUBLIC SITE</a>
     </nav>
   </header>
-
   <div class="rule"></div>
 
-  <main class="wrap adminwrap">
-    <div class="admincard">
-      <h2>Field passwords</h2>
-      <p class="sub">Browser login popup = admin protection. Keep your password strong.</p>
+  <main class="wrap">
+    <div class="adminBox">
+      <div class="label">Passwords</div>
 
-      <div class="row">
-        <button id="refresh" class="btn">Refresh status</button>
-        <button id="clearAll" class="btn btnGhost">Clear ALL passwords</button>
-        <span id="msg" class="msg"></span>
+      <div class="adminRow">
+        <select id="fieldSelect" class="input">
+          <option value="f1">f1</option><option value="f2">f2</option><option value="f3">f3</option>
+          <option value="f4">f4</option><option value="f5">f5</option><option value="f6">f6</option>
+          <option value="f7">f7</option><option value="f8">f8</option><option value="f9">f9</option>
+          <option value="f10">f10</option><option value="f11">f11</option><option value="f12">f12</option>
+        </select>
+
+        <input id="pwInput" class="input" type="text" placeholder="New password" />
+        <button id="setBtn" class="btn">SET</button>
       </div>
 
-      <div id="statusGrid" class="statusGrid"></div>
-
-      <hr class="hr" />
-
-      <h3>Set / change password</h3>
-      <div class="form">
-        <label>
-          Field
-          <select id="fieldId"></select>
-        </label>
-
-        <label>
-          Password
-          <input id="password" class="input" type="text" autocomplete="off" />
-        </label>
-
-        <button id="setBtn" class="btn">Save password</button>
-        <button id="clearBtn" class="btn btnGhost">Clear field</button>
+      <div class="adminRow">
+        <button id="resetOneBtn" class="btn">RESET (LOCK) FIELD</button>
+        <button id="resetAllBtn" class="btn">RESET (LOCK) ALL</button>
+        <button id="refreshBtn" class="btn">REFRESH STATE</button>
       </div>
 
-      <hr class="hr" />
+      <pre id="out" class="out"></pre>
+    </div>
 
-      <h3>Test a password</h3>
-      <div class="form">
-        <label>
-          Field
-          <select id="testFieldId"></select>
-        </label>
+    <div style="height:16px"></div>
 
-        <label>
-          Password to test
-          <input id="testPassword" class="input" type="text" autocomplete="off" />
-        </label>
-
-        <button id="testBtn" class="btn">Test</button>
+    <div class="adminBox">
+      <div class="label">History log (append-only)</div>
+      <div class="adminRow">
+        <button id="refreshLogBtn" class="btn">REFRESH LOG</button>
       </div>
-
-      <p class="sub">Reset to red (UI) is on the main page via each field’s “Reset” button.</p>
+      <pre id="logOut" class="out" style="max-height:340px"></pre>
     </div>
   </main>
 
-  <script src="./admin.js"></script>
+  <!-- IMPORTANT: admin.js is now served from /admin.js behind auth -->
+  <script src="/admin.js"></script>
 </body>
 </html>

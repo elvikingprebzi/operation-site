@@ -1,134 +1,87 @@
-const refreshBtn = document.getElementById("refresh");
-const clearAllBtn = document.getElementById("clearAll");
-const msg = document.getElementById("msg");
-const statusGrid = document.getElementById("statusGrid");
-
-const fieldSelect = document.getElementById("fieldId");
-const passInput = document.getElementById("password");
-const setBtn = document.getElementById("setBtn");
-const clearBtn = document.getElementById("clearBtn");
-
-const testFieldSelect = document.getElementById("testFieldId");
-const testPassInput = document.getElementById("testPassword");
-const testBtn = document.getElementById("testBtn");
-
-const fields = Array.from({ length: 12 }, (_, i) => `f${i + 1}`);
-
-fields.forEach(f => {
-  const opt = document.createElement("option");
-  opt.value = f;
-  opt.textContent = f.toUpperCase();
-  fieldSelect.appendChild(opt);
-
-  const opt2 = document.createElement("option");
-  opt2.value = f;
-  opt2.textContent = f.toUpperCase();
-  testFieldSelect.appendChild(opt2);
-});
-
-function setMessage(text, ok = true) {
-  msg.textContent = text;
-  msg.style.color = ok ? "var(--green)" : "var(--red)";
-  setTimeout(() => (msg.textContent = ""), 2200);
+function pretty(obj) {
+  return JSON.stringify(obj, null, 2);
 }
 
-async function loadStatus() {
-  try {
-    const res = await fetch("/api/admin/status");
-    if (!res.ok) throw new Error("Auth or server error");
-    const data = await res.json();
+async function postJson(url, body) {
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body || {}),
+  });
+  return res.json();
+}
 
-    statusGrid.innerHTML = "";
-    for (const f of fields) {
-      const isSet = data.status[f];
-      const pill = document.createElement("div");
-      pill.className = "pill " + (isSet ? "ok" : "");
-      pill.innerHTML = `
-        <span class="k">${f.toUpperCase()}</span>
-        <span class="v">${isSet ? "SET ✅" : "EMPTY"}</span>
-      `;
-      statusGrid.appendChild(pill);
+async function getJson(url) {
+  const res = await fetch(url);
+  return res.json();
+}
+
+document.addEventListener("DOMContentLoaded", async () => {
+  const fieldSelect = document.getElementById("fieldSelect");
+  const pwInput = document.getElementById("pwInput");
+  const out = document.getElementById("out");
+  const logOut = document.getElementById("logOut");
+
+  const setBtn = document.getElementById("setBtn");
+  const resetOneBtn = document.getElementById("resetOneBtn");
+  const resetAllBtn = document.getElementById("resetAllBtn");
+  const refreshBtn = document.getElementById("refreshBtn");
+  const refreshLogBtn = document.getElementById("refreshLogBtn");
+
+  async function refreshState() {
+    const data = await getJson("/api/admin/state");
+    out.textContent = pretty(data);
+  }
+
+  async function refreshLog() {
+    const data = await getJson("/api/admin/log?limit=200");
+    // show newest last in a readable way
+    if (!data.ok) {
+      logOut.textContent = pretty(data);
+      return;
     }
-  } catch {
-    setMessage("Could not load status (check login).", false);
+    logOut.textContent = data.lines.join("\n");
   }
-}
 
-refreshBtn.addEventListener("click", loadStatus);
+  refreshBtn.addEventListener("click", async () => {
+    await refreshState();
+  });
 
-setBtn.addEventListener("click", async () => {
-  const fieldId = fieldSelect.value;
-  const password = passInput.value;
+  setBtn.addEventListener("click", async () => {
+    const fieldId = fieldSelect.value;
+    const password = (pwInput.value || "").trim();
+    if (!password) return;
 
-  if (!password.trim()) return setMessage("Enter a password first.", false);
+    const result = await postJson("/api/admin/set", { fieldId, password });
+    pwInput.value = "";
+    out.textContent = pretty(result);
 
-  try {
-    const res = await fetch("/api/admin/set", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ fieldId, password })
-    });
-    if (!res.ok) throw new Error();
-    setMessage("Saved.");
-    passInput.value = "";
-    await loadStatus();
-  } catch {
-    setMessage("Save failed (check login).", false);
-  }
+    await refreshState();
+    await refreshLog();
+  });
+
+  resetOneBtn.addEventListener("click", async () => {
+    const fieldId = fieldSelect.value;
+    const result = await postJson("/api/admin/reset", { fieldId });
+    out.textContent = pretty(result);
+
+    await refreshState();
+    await refreshLog();
+  });
+
+  resetAllBtn.addEventListener("click", async () => {
+    const result = await postJson("/api/admin/reset", { fieldId: "all" });
+    out.textContent = pretty(result);
+
+    await refreshState();
+    await refreshLog();
+  });
+
+  refreshLogBtn.addEventListener("click", async () => {
+    await refreshLog();
+  });
+
+  // initial load
+  await refreshState();
+  await refreshLog();
 });
-
-clearBtn.addEventListener("click", async () => {
-  const fieldId = fieldSelect.value;
-  try {
-    const res = await fetch("/api/admin/clear", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ fieldId })
-    });
-    if (!res.ok) throw new Error();
-    setMessage("Cleared.");
-    await loadStatus();
-  } catch {
-    setMessage("Clear failed (check login).", false);
-  }
-});
-
-testBtn.addEventListener("click", async () => {
-  const fieldId = testFieldSelect.value;
-  const password = testPassInput.value;
-
-  if (!password.trim()) return setMessage("Enter a password to test.", false);
-
-  try {
-    const res = await fetch("/api/admin/test", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ fieldId, password })
-    });
-    if (!res.ok) throw new Error();
-    const data = await res.json();
-
-    setMessage(data.ok ? "✅ Correct password" : "❌ Wrong password", data.ok);
-  } catch {
-    setMessage("Test failed (check login).", false);
-  }
-});
-
-clearAllBtn.addEventListener("click", async () => {
-  if (!confirm("Clear ALL field passwords? This cannot be undone.")) return;
-
-  try {
-    const res = await fetch("/api/admin/clearAll", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" }
-    });
-    if (!res.ok) throw new Error();
-    setMessage("All passwords cleared.");
-    await loadStatus();
-  } catch {
-    setMessage("Clear-all failed (check login).", false);
-  }
-});
-
-// Auto-load
-loadStatus();
