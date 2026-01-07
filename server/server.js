@@ -10,49 +10,56 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// ---------------------------
-// Config
-// ---------------------------
 const PORT = process.env.PORT || 3001;
 const ADMIN_USER = process.env.ADMIN_USER || "admin";
 const ADMIN_PASS = process.env.ADMIN_PASS || "change-this";
 
-// Where we store passwords + unlocked state
 const PASSWORDS_FILE = path.join(__dirname, "passwords.json");
-
-// Fields we support
 const FIELD_IDS = Array.from({ length: 12 }, (_, i) => `f${i + 1}`);
 
-// ---------------------------
-// Helpers: load/save
-// ---------------------------
+const app = express();
+
+app.use(
+  helmet({
+    contentSecurityPolicy: false,
+  })
+);
+
+app.use(express.json({ limit: "64kb" }));
+
+app.use(
+  rateLimit({
+    windowMs: 60 * 1000,
+    max: 180,
+    standardHeaders: true,
+    legacyHeaders: false,
+  })
+);
+
+// Serve frontend
+const publicDir = path.join(__dirname, "..", "public");
+app.use(express.static(publicDir));
+
+// -----------------------------
+// Password storage helpers
+// -----------------------------
 function ensureFileExists() {
   if (!fs.existsSync(PASSWORDS_FILE)) {
     const initial = {};
-    for (const id of FIELD_IDS) {
-      initial[id] = { hash: "", unlocked: false };
-    }
+    for (const id of FIELD_IDS) initial[id] = { hash: "", unlocked: false };
     fs.writeFileSync(PASSWORDS_FILE, JSON.stringify(initial, null, 2), "utf-8");
   }
 }
 
-// Backward compatible:
-// - If value is a string => treat as { hash: string, unlocked: false }
-// - If object => ensure { hash, unlocked }
+// Backward compatible if old format was: { "f1": "<hash>", ... }
 function normalizePasswords(data) {
-  const out = {};
   const obj = data && typeof data === "object" ? data : {};
-
+  const out = {};
   for (const id of FIELD_IDS) {
     const v = obj[id];
-
-    if (typeof v === "string") {
-      out[id] = { hash: v, unlocked: false };
-    } else if (v && typeof v === "object") {
-      out[id] = { hash: v.hash || "", unlocked: !!v.unlocked };
-    } else {
-      out[id] = { hash: "", unlocked: false };
-    }
+    if (typeof v === "string") out[id] = { hash: v, unlocked: false };
+    else if (v && typeof v === "object") out[id] = { hash: v.hash || "", unlocked: !!v.unlocked };
+    else out[id] = { hash: "", unlocked: false };
   }
   return out;
 }
@@ -60,7 +67,7 @@ function normalizePasswords(data) {
 function loadPasswords() {
   ensureFileExists();
   const raw = fs.readFileSync(PASSWORDS_FILE, "utf-8");
-  let parsed;
+  let parsed = {};
   try {
     parsed = JSON.parse(raw);
   } catch {
@@ -69,21 +76,18 @@ function loadPasswords() {
   return normalizePasswords(parsed);
 }
 
-// Atomic-ish write to reduce corruption risk
 function savePasswords(passwords) {
   const tmp = `${PASSWORDS_FILE}.${crypto.randomUUID()}.tmp`;
   fs.writeFileSync(tmp, JSON.stringify(passwords, null, 2), "utf-8");
   fs.renameSync(tmp, PASSWORDS_FILE);
 }
 
-// Keep in memory; write whenever changed
 let passwords = loadPasswords();
 
-// ---------------------------
+// -----------------------------
 // Admin auth (Basic Auth)
-// ---------------------------
+// -----------------------------
 function parseBasicAuth(header) {
-  // header like: "Basic base64(user:pass)"
   if (!header || !header.startsWith("Basic ")) return null;
   const b64 = header.slice("Basic ".length).trim();
   let decoded = "";
@@ -106,131 +110,77 @@ function requireAdmin(req, res, next) {
   next();
 }
 
-// ---------------------------
-// App setup
-// ---------------------------
-const app = express();
+// -----------------------------
+// Public API
+// -----------------------------
 
-app.use(
-  helmet({
-    contentSecurityPolicy: false, // keep simple; you can tighten later
-  })
-);
-
-app.use(express.json({ limit: "64kb" }));
-
-// Basic rate limiting
-app.use(
-  rateLimit({
-    windowMs: 60 * 1000,
-    max: 120,
-    standardHeaders: true,
-    legacyHeaders: false,
-  })
-);
-
-// Serve the frontend from /public (one folder up from server/)
-const publicDir = path.join(__dirname, "..", "public");
-app.use(express.static(publicDir));
-
-// ---------------------------
-// API: public
-// ---------------------------
-
-// Return which fields are unlocked so frontend can show green on load
+// Frontend calls this on load to mark unlocked fields
 app.get("/api/status", (req, res) => {
-  // Reload from disk to be safe if multiple instances ever happen
   passwords = loadPasswords();
-
   const status = {};
-  for (const id of FIELD_IDS) {
-    status[id] = !!passwords[id]?.unlocked;
-  }
-
+  for (const id of FIELD_IDS) status[id] = !!passwords[id]?.unlocked;
   res.json({ ok: true, status });
 });
 
-// Verify a password for a field.
-// If correct: mark unlocked=true and persist to passwords.json
+// Verify password. If correct => persist unlocked=true
 app.post("/api/verify", async (req, res) => {
   const { fieldId, password } = req.body || {};
 
-  if (!FIELD_IDS.includes(fieldId)) {
-    return res.status(400).json({ ok: false, error: "Invalid fieldId" });
-  }
-  if (typeof password !== "string") {
-    return res.status(400).json({ ok: false, error: "Invalid password" });
-  }
+  if (!FIELD_IDS.includes(fieldId)) return res.status(400).json({ ok: false, error: "Invalid fieldId" });
+  if (typeof password !== "string") return res.status(400).json({ ok: false, error: "Invalid password" });
 
-  // Always reload in case admin changed things
   passwords = loadPasswords();
-
   const entry = passwords[fieldId];
-  if (!entry || !entry.hash) {
-    return res.json({ ok: false });
-  }
+  if (!entry || !entry.hash) return res.json({ ok: false });
 
   try {
     const match = await bcrypt.compare(password, entry.hash);
     if (!match) return res.json({ ok: false });
 
-    // Persist unlock
     passwords[fieldId].unlocked = true;
     savePasswords(passwords);
 
     return res.json({ ok: true });
-  } catch (e) {
+  } catch {
     return res.status(500).json({ ok: false, error: "Server error" });
   }
 });
 
-// ---------------------------
-// API: admin (protected)
-// ---------------------------
+// -----------------------------
+// Admin API
+// -----------------------------
 
-// List current state (hash present? unlocked?)
 app.get("/api/admin/state", requireAdmin, (req, res) => {
   passwords = loadPasswords();
-
   const state = {};
   for (const id of FIELD_IDS) {
-    state[id] = {
-      hasPassword: !!passwords[id]?.hash,
-      unlocked: !!passwords[id]?.unlocked,
-    };
+    state[id] = { hasPassword: !!passwords[id]?.hash, unlocked: !!passwords[id]?.unlocked };
   }
   res.json({ ok: true, state });
 });
 
-// Set/replace a password for a field.
-// NOTE: also locks it (unlocked=false) by default when password is changed.
+// Set/replace password (locks field when changed)
 app.post("/api/admin/set", requireAdmin, async (req, res) => {
   const { fieldId, password } = req.body || {};
 
-  if (!FIELD_IDS.includes(fieldId)) {
-    return res.status(400).json({ ok: false, error: "Invalid fieldId" });
-  }
-  if (typeof password !== "string" || password.length < 1) {
+  if (!FIELD_IDS.includes(fieldId)) return res.status(400).json({ ok: false, error: "Invalid fieldId" });
+  if (typeof password !== "string" || password.length < 1)
     return res.status(400).json({ ok: false, error: "Password required" });
-  }
 
   passwords = loadPasswords();
-
   try {
     const hash = await bcrypt.hash(password, 10);
-    passwords[fieldId] = { hash, unlocked: false }; // lock on change
+    passwords[fieldId] = { hash, unlocked: false };
     savePasswords(passwords);
-
     res.json({ ok: true });
   } catch {
     res.status(500).json({ ok: false, error: "Server error" });
   }
 });
 
-// Reset (lock) one field OR all fields
+// Reset/lock one field or all fields (does NOT delete hashes)
 app.post("/api/admin/reset", requireAdmin, (req, res) => {
   const { fieldId } = req.body || {};
-
   passwords = loadPasswords();
 
   if (fieldId === "all") {
@@ -242,42 +192,19 @@ app.post("/api/admin/reset", requireAdmin, (req, res) => {
     return res.json({ ok: true });
   }
 
-  if (!FIELD_IDS.includes(fieldId)) {
-    return res.status(400).json({ ok: false, error: "Invalid fieldId" });
-  }
-
+  if (!FIELD_IDS.includes(fieldId)) return res.status(400).json({ ok: false, error: "Invalid fieldId" });
   if (!passwords[fieldId]) passwords[fieldId] = { hash: "", unlocked: false };
+
   passwords[fieldId].unlocked = false;
   savePasswords(passwords);
-
   res.json({ ok: true });
 });
 
-// Optional: clear a password entirely (also locks it)
-app.post("/api/admin/clear", requireAdmin, (req, res) => {
-  const { fieldId } = req.body || {};
-
-  if (!FIELD_IDS.includes(fieldId)) {
-    return res.status(400).json({ ok: false, error: "Invalid fieldId" });
-  }
-
-  passwords = loadPasswords();
-  passwords[fieldId] = { hash: "", unlocked: false };
-  savePasswords(passwords);
-
-  res.json({ ok: true });
-});
-
-// ---------------------------
-// Fallback route
-// ---------------------------
+// Fallback
 app.get("*", (req, res) => {
   res.sendFile(path.join(publicDir, "index.html"));
 });
 
-// ---------------------------
-// Start
-// ---------------------------
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
 });

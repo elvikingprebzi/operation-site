@@ -1,109 +1,95 @@
-const grid = document.getElementById("grid");
-
-const fields = Array.from({ length: 12 }, (_, i) => ({
-  id: `f${i + 1}`,
-  label: "Enter encryption:"
-}));
-
-function makeCard(field) {
-  const card = document.createElement("div");
-  card.className = "card";
-  card.dataset.fieldId = field.id;
-
-  card.innerHTML = `
-    <div class="labelrow">
-      <div class="label">${field.label}</div>
-      <div class="status">
-        <span class="check" aria-hidden="true" style="display:none;">✅</span>
-        <span class="badge">Locked</span>
-        <button class="miniReset" type="button" title="Reset field">Reset</button>
-      </div>
-    </div>
-    <input class="input" type="password" autocomplete="off" spellcheck="false" />
-    <div class="hint">Press Enter to verify</div>
-  `;
-
-  const input = card.querySelector(".input");
-  const resetBtn = card.querySelector(".miniReset");
-
-  input.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") verifyField(card, input.value);
+async function verifyField(fieldId, password) {
+  const res = await fetch("/api/verify", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ fieldId, password }),
   });
-  input.addEventListener("blur", () => {
-    if (input.value.trim().length) verifyField(card, input.value);
-  });
-
-  resetBtn.addEventListener("click", () => resetCard(card));
-
-  return card;
+  return res.json();
 }
 
-async function verifyField(card, value) {
-  if (card.classList.contains("decrypted")) return;
+// Shows the field as unlocked.
+// IMPORTANT: does NOT auto-navigate by default.
+function setDecrypted(card) {
+  card.classList.add("decrypted");
 
-  const fieldId = card.dataset.fieldId;
+  const badge = card.querySelector(".badge");
+  const check = card.querySelector(".check");
+  const input = card.querySelector(".input");
 
-  try {
-    const res = await fetch(`/api/verify`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ fieldId, value })
-    });
-    const data = await res.json();
-
-    if (data.ok) setDecrypted(card);
-    else flashDenied(card);
-  } catch {
-    flashError(card);
+  if (badge) badge.textContent = "Decrypted";
+  if (check) check.style.display = "inline";
+  if (input) {
+    input.value = "••••••••••";
+    input.disabled = true;
   }
 }
 
-function setDecrypted(card) {
-  card.classList.add("decrypted");
-  const badge = card.querySelector(".badge");
-  const check = card.querySelector(".check");
-  const input = card.querySelector(".input");
-
-  badge.textContent = "Decrypted";
-  check.style.display = "inline";
-  input.type = "text";
-  input.value = "••••••••••";
-  input.disabled = true;
+// If you want to open the subpage with image when just unlocked,
+// leave this enabled:
+function navigateToDecrypted(fieldId) {
+  window.location.href = `/decrypted.html?field=${encodeURIComponent(fieldId)}`;
 }
 
-function resetCard(card) {
-  card.classList.remove("decrypted");
-  const badge = card.querySelector(".badge");
-  const check = card.querySelector(".check");
-  const input = card.querySelector(".input");
+async function hydrateUnlockedState() {
+  try {
+    const res = await fetch("/api/status");
+    const data = await res.json();
+    if (!data.ok) return;
 
-  badge.textContent = "Locked";
-  check.style.display = "none";
-  input.disabled = false;
-  input.type = "password";
-  input.value = "";
-  input.focus();
+    for (const [fieldId, isUnlocked] of Object.entries(data.status || {})) {
+      if (!isUnlocked) continue;
+      const card = document.querySelector(`.card[data-field="${fieldId}"]`);
+      if (card) setDecrypted(card);
+    }
+  } catch (e) {
+    console.warn("Failed to load status", e);
+  }
 }
 
-function flashDenied(card) {
-  const input = card.querySelector(".input");
-  input.animate(
-    [
-      { transform: "translateX(0px)" },
-      { transform: "translateX(-6px)" },
-      { transform: "translateX(6px)" },
-      { transform: "translateX(-4px)" },
-      { transform: "translateX(4px)" },
-      { transform: "translateX(0px)" }
-    ],
-    { duration: 260 }
-  );
+function wireCards() {
+  const cards = document.querySelectorAll(".card");
+
+  for (const card of cards) {
+    const fieldId = card.getAttribute("data-field");
+    const input = card.querySelector(".input");
+    const btn = card.querySelector(".btn");
+
+    const submit = async () => {
+      const password = (input.value || "").trim();
+      if (!password) return;
+
+      btn.disabled = true;
+      const oldText = btn.textContent;
+      btn.textContent = "…";
+
+      try {
+        const data = await verifyField(fieldId, password);
+        if (data.ok) {
+          setDecrypted(card);
+          // Only navigate on *fresh* unlock:
+          navigateToDecrypted(fieldId);
+        } else {
+          input.value = "";
+          input.focus();
+          card.classList.add("shake");
+          setTimeout(() => card.classList.remove("shake"), 250);
+        }
+      } catch (e) {
+        console.warn(e);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = oldText;
+      }
+    };
+
+    btn.addEventListener("click", submit);
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") submit();
+    });
+  }
 }
 
-function flashError(card) {
-  const badge = card.querySelector(".badge");
-  badge.textContent = "Offline";
-  setTimeout(() => (badge.textContent = "Locked"), 900);
-}
-
-fields.forEach((f) => grid.appendChild(makeCard(f)));
+document.addEventListener("DOMContentLoaded", async () => {
+  wireCards();
+  await hydrateUnlockedState();
+});
