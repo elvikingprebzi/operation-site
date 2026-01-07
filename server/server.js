@@ -98,6 +98,10 @@ app.get("/admin.html", requireAdmin, (req, res) => res.sendFile(path.join(public
 
 app.use(express.static(publicDir));
 
+app.get("/", (req, res) => {
+  res.sendFile(path.join(publicDir, "index.html"));
+});
+
 // ---------- Public API ----------
 app.get("/api/status", (req, res) => {
   const passwords = loadPasswords();
