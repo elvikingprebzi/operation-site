@@ -1,103 +1,225 @@
 import express from "express";
+import path from "path";
+import fs from "fs";
+import crypto from "crypto";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import bcrypt from "bcryptjs";
-import fs from "fs";
-import path from "path";
 import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const app = express();
-
+// ---------------------------
+// Config
+// ---------------------------
 const PORT = process.env.PORT || 3001;
-
-// Set these later in hosting (and locally when you run it)
 const ADMIN_USER = process.env.ADMIN_USER || "admin";
 const ADMIN_PASS = process.env.ADMIN_PASS || "change-this";
 
-const PASSWORD_FILE = path.join(__dirname, "passwords.json");
+// Where we store passwords + unlocked state
+const PASSWORDS_FILE = path.join(__dirname, "passwords.json");
 
-app.use(helmet());
-app.use(express.json());
+// Fields we support
+const FIELD_IDS = Array.from({ length: 12 }, (_, i) => `f${i + 1}`);
+
+// ---------------------------
+// Helpers: load/save
+// ---------------------------
+function ensureFileExists() {
+  if (!fs.existsSync(PASSWORDS_FILE)) {
+    const initial = {};
+    for (const id of FIELD_IDS) {
+      initial[id] = { hash: "", unlocked: false };
+    }
+    fs.writeFileSync(PASSWORDS_FILE, JSON.stringify(initial, null, 2), "utf-8");
+  }
+}
+
+// Backward compatible:
+// - If value is a string => treat as { hash: string, unlocked: false }
+// - If object => ensure { hash, unlocked }
+function normalizePasswords(data) {
+  const out = {};
+  const obj = data && typeof data === "object" ? data : {};
+
+  for (const id of FIELD_IDS) {
+    const v = obj[id];
+
+    if (typeof v === "string") {
+      out[id] = { hash: v, unlocked: false };
+    } else if (v && typeof v === "object") {
+      out[id] = { hash: v.hash || "", unlocked: !!v.unlocked };
+    } else {
+      out[id] = { hash: "", unlocked: false };
+    }
+  }
+  return out;
+}
+
+function loadPasswords() {
+  ensureFileExists();
+  const raw = fs.readFileSync(PASSWORDS_FILE, "utf-8");
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    parsed = {};
+  }
+  return normalizePasswords(parsed);
+}
+
+// Atomic-ish write to reduce corruption risk
+function savePasswords(passwords) {
+  const tmp = `${PASSWORDS_FILE}.${crypto.randomUUID()}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify(passwords, null, 2), "utf-8");
+  fs.renameSync(tmp, PASSWORDS_FILE);
+}
+
+// Keep in memory; write whenever changed
+let passwords = loadPasswords();
+
+// ---------------------------
+// Admin auth (Basic Auth)
+// ---------------------------
+function parseBasicAuth(header) {
+  // header like: "Basic base64(user:pass)"
+  if (!header || !header.startsWith("Basic ")) return null;
+  const b64 = header.slice("Basic ".length).trim();
+  let decoded = "";
+  try {
+    decoded = Buffer.from(b64, "base64").toString("utf-8");
+  } catch {
+    return null;
+  }
+  const idx = decoded.indexOf(":");
+  if (idx < 0) return null;
+  return { user: decoded.slice(0, idx), pass: decoded.slice(idx + 1) };
+}
+
+function requireAdmin(req, res, next) {
+  const creds = parseBasicAuth(req.headers.authorization);
+  if (!creds || creds.user !== ADMIN_USER || creds.pass !== ADMIN_PASS) {
+    res.setHeader("WWW-Authenticate", 'Basic realm="Admin"');
+    return res.status(401).json({ ok: false, error: "Unauthorized" });
+  }
+  next();
+}
+
+// ---------------------------
+// App setup
+// ---------------------------
+const app = express();
+
 app.use(
-  rateLimit({
-    windowMs: 60_000,
-    max: 180
+  helmet({
+    contentSecurityPolicy: false, // keep simple; you can tighten later
   })
 );
 
-function readPasswords() {
-  const raw = fs.readFileSync(PASSWORD_FILE, "utf8");
-  return JSON.parse(raw);
-}
+app.use(express.json({ limit: "64kb" }));
 
-function writePasswords(data) {
-  fs.writeFileSync(PASSWORD_FILE, JSON.stringify(data, null, 2), "utf8");
-}
+// Basic rate limiting
+app.use(
+  rateLimit({
+    windowMs: 60 * 1000,
+    max: 120,
+    standardHeaders: true,
+    legacyHeaders: false,
+  })
+);
 
-function isValidFieldId(fieldId) {
-  return /^f([1-9]|1[0-2])$/.test(fieldId);
-}
-
-function requireBasicAuth(req, res, next) {
-  const hdr = req.headers.authorization || "";
-  if (!hdr.startsWith("Basic ")) {
-    return res.status(401).set("WWW-Authenticate", "Basic").end();
-  }
-
-  const decoded = Buffer.from(hdr.slice(6), "base64").toString("utf8");
-  const [user, pass] = decoded.split(":");
-
-  if (user === ADMIN_USER && pass === ADMIN_PASS) return next();
-  return res.status(401).set("WWW-Authenticate", "Basic").end();
-}
-
-// Serve frontend from /public
+// Serve the frontend from /public (one folder up from server/)
 const publicDir = path.join(__dirname, "..", "public");
 app.use(express.static(publicDir));
 
-app.get("/api/health", (req, res) => res.json({ ok: true }));
+// ---------------------------
+// API: public
+// ---------------------------
 
-// Verify a field entry (main page)
+// Return which fields are unlocked so frontend can show green on load
+app.get("/api/status", (req, res) => {
+  // Reload from disk to be safe if multiple instances ever happen
+  passwords = loadPasswords();
+
+  const status = {};
+  for (const id of FIELD_IDS) {
+    status[id] = !!passwords[id]?.unlocked;
+  }
+
+  res.json({ ok: true, status });
+});
+
+// Verify a password for a field.
+// If correct: mark unlocked=true and persist to passwords.json
 app.post("/api/verify", async (req, res) => {
+  const { fieldId, password } = req.body || {};
+
+  if (!FIELD_IDS.includes(fieldId)) {
+    return res.status(400).json({ ok: false, error: "Invalid fieldId" });
+  }
+  if (typeof password !== "string") {
+    return res.status(400).json({ ok: false, error: "Invalid password" });
+  }
+
+  // Always reload in case admin changed things
+  passwords = loadPasswords();
+
+  const entry = passwords[fieldId];
+  if (!entry || !entry.hash) {
+    return res.json({ ok: false });
+  }
+
   try {
-    const { fieldId, value } = req.body ?? {};
-    if (!isValidFieldId(fieldId) || typeof value !== "string") {
-      return res.status(400).json({ ok: false, error: "Bad request" });
-    }
+    const match = await bcrypt.compare(password, entry.hash);
+    if (!match) return res.json({ ok: false });
 
-    const store = readPasswords();
-    const hash = store.fields[fieldId];
-    if (!hash) return res.json({ ok: false });
+    // Persist unlock
+    passwords[fieldId].unlocked = true;
+    savePasswords(passwords);
 
-    const ok = await bcrypt.compare(value, hash);
-    return res.json({ ok });
-  } catch {
+    return res.json({ ok: true });
+  } catch (e) {
     return res.status(500).json({ ok: false, error: "Server error" });
   }
 });
 
-// Admin: view status
-app.get("/api/admin/status", requireBasicAuth, (req, res) => {
-  const store = readPasswords();
-  const status = {};
-  for (const [k, v] of Object.entries(store.fields)) status[k] = Boolean(v);
-  res.json({ ok: true, status });
+// ---------------------------
+// API: admin (protected)
+// ---------------------------
+
+// List current state (hash present? unlocked?)
+app.get("/api/admin/state", requireAdmin, (req, res) => {
+  passwords = loadPasswords();
+
+  const state = {};
+  for (const id of FIELD_IDS) {
+    state[id] = {
+      hasPassword: !!passwords[id]?.hash,
+      unlocked: !!passwords[id]?.unlocked,
+    };
+  }
+  res.json({ ok: true, state });
 });
 
-// Admin: set/change password
-app.post("/api/admin/set", requireBasicAuth, async (req, res) => {
-  try {
-    const { fieldId, password } = req.body ?? {};
-    if (!isValidFieldId(fieldId) || typeof password !== "string" || password.length < 1) {
-      return res.status(400).json({ ok: false, error: "Bad request" });
-    }
+// Set/replace a password for a field.
+// NOTE: also locks it (unlocked=false) by default when password is changed.
+app.post("/api/admin/set", requireAdmin, async (req, res) => {
+  const { fieldId, password } = req.body || {};
 
-    const store = readPasswords();
-    store.fields[fieldId] = await bcrypt.hash(password, 12);
-    writePasswords(store);
+  if (!FIELD_IDS.includes(fieldId)) {
+    return res.status(400).json({ ok: false, error: "Invalid fieldId" });
+  }
+  if (typeof password !== "string" || password.length < 1) {
+    return res.status(400).json({ ok: false, error: "Password required" });
+  }
+
+  passwords = loadPasswords();
+
+  try {
+    const hash = await bcrypt.hash(password, 10);
+    passwords[fieldId] = { hash, unlocked: false }; // lock on change
+    savePasswords(passwords);
 
     res.json({ ok: true });
   } catch {
@@ -105,45 +227,57 @@ app.post("/api/admin/set", requireBasicAuth, async (req, res) => {
   }
 });
 
-// Admin: clear a field password
-app.post("/api/admin/clear", requireBasicAuth, (req, res) => {
-  const { fieldId } = req.body ?? {};
-  if (!isValidFieldId(fieldId)) return res.status(400).json({ ok: false });
+// Reset (lock) one field OR all fields
+app.post("/api/admin/reset", requireAdmin, (req, res) => {
+  const { fieldId } = req.body || {};
 
-  const store = readPasswords();
-  store.fields[fieldId] = null;
-  writePasswords(store);
+  passwords = loadPasswords();
 
-  res.json({ ok: true });
-});
-
-// Admin: test a password
-app.post("/api/admin/test", requireBasicAuth, async (req, res) => {
-  try {
-    const { fieldId, password } = req.body ?? {};
-    if (!isValidFieldId(fieldId) || typeof password !== "string") {
-      return res.status(400).json({ ok: false, error: "Bad request" });
+  if (fieldId === "all") {
+    for (const id of FIELD_IDS) {
+      if (!passwords[id]) passwords[id] = { hash: "", unlocked: false };
+      passwords[id].unlocked = false;
     }
-
-    const store = readPasswords();
-    const hash = store.fields[fieldId];
-    if (!hash) return res.json({ ok: false });
-
-    const ok = await bcrypt.compare(password, hash);
-    return res.json({ ok });
-  } catch {
-    return res.status(500).json({ ok: false, error: "Server error" });
+    savePasswords(passwords);
+    return res.json({ ok: true });
   }
-});
 
-// Admin: clear ALL (optional)
-app.post("/api/admin/clearAll", requireBasicAuth, (req, res) => {
-  const store = readPasswords();
-  for (const k of Object.keys(store.fields)) store.fields[k] = null;
-  writePasswords(store);
+  if (!FIELD_IDS.includes(fieldId)) {
+    return res.status(400).json({ ok: false, error: "Invalid fieldId" });
+  }
+
+  if (!passwords[fieldId]) passwords[fieldId] = { hash: "", unlocked: false };
+  passwords[fieldId].unlocked = false;
+  savePasswords(passwords);
+
   res.json({ ok: true });
 });
 
+// Optional: clear a password entirely (also locks it)
+app.post("/api/admin/clear", requireAdmin, (req, res) => {
+  const { fieldId } = req.body || {};
+
+  if (!FIELD_IDS.includes(fieldId)) {
+    return res.status(400).json({ ok: false, error: "Invalid fieldId" });
+  }
+
+  passwords = loadPasswords();
+  passwords[fieldId] = { hash: "", unlocked: false };
+  savePasswords(passwords);
+
+  res.json({ ok: true });
+});
+
+// ---------------------------
+// Fallback route
+// ---------------------------
+app.get("*", (req, res) => {
+  res.sendFile(path.join(publicDir, "index.html"));
+});
+
+// ---------------------------
+// Start
+// ---------------------------
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
 });
