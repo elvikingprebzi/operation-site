@@ -10,27 +10,37 @@
   <header class="topbar">
     <div class="brand">OPERATION RØV OG NØGLER JUL 2026</div>
     <nav class="nav">
-      <a class="navlink" href="#" onclick="return false;">STATUS</a>
-      <a class="navlink" href="/admin" target="_blank" rel="noopener">SYSTEM LOGIN</a>
+      <span class="navlink">STATUS</span>
+      <!-- Same tab, prompts for login -->
+      <a class="navlink" href="/admin">SYSTEM LOGIN</a>
     </nav>
   </header>
   <div class="rule"></div>
 
   <main class="wrap">
-    <div class="grid">
-      <!-- 12 cards -->
-      <div class="card" data-field="f1"><div class="label">Enter encryption:</div><div class="row"><input class="input" type="password" autocomplete="off"/><button class="btn">VERIFY</button><span class="check">✓</span></div><div class="badge">Locked</div></div>
-      <div class="card" data-field="f2"><div class="label">Enter encryption:</div><div class="row"><input class="input" type="password" autocomplete="off"/><button class="btn">VERIFY</button><span class="check">✓</span></div><div class="badge">Locked</div></div>
-      <div class="card" data-field="f3"><div class="label">Enter encryption:</div><div class="row"><input class="input" type="password" autocomplete="off"/><button class="btn">VERIFY</button><span class="check">✓</span></div><div class="badge">Locked</div></div>
-      <div class="card" data-field="f4"><div class="label">Enter encryption:</div><div class="row"><input class="input" type="password" autocomplete="off"/><button class="btn">VERIFY</button><span class="check">✓</span></div><div class="badge">Locked</div></div>
-      <div class="card" data-field="f5"><div class="label">Enter encryption:</div><div class="row"><input class="input" type="password" autocomplete="off"/><button class="btn">VERIFY</button><span class="check">✓</span></div><div class="badge">Locked</div></div>
-      <div class="card" data-field="f6"><div class="label">Enter encryption:</div><div class="row"><input class="input" type="password" autocomplete="off"/><button class="btn">VERIFY</button><span class="check">✓</span></div><div class="badge">Locked</div></div>
-      <div class="card" data-field="f7"><div class="label">Enter encryption:</div><div class="row"><input class="input" type="password" autocomplete="off"/><button class="btn">VERIFY</button><span class="check">✓</span></div><div class="badge">Locked</div></div>
-      <div class="card" data-field="f8"><div class="label">Enter encryption:</div><div class="row"><input class="input" type="password" autocomplete="off"/><button class="btn">VERIFY</button><span class="check">✓</span></div><div class="badge">Locked</div></div>
-      <div class="card" data-field="f9"><div class="label">Enter encryption:</div><div class="row"><input class="input" type="password" autocomplete="off"/><button class="btn">VERIFY</button><span class="check">✓</span></div><div class="badge">Locked</div></div>
-      <div class="card" data-field="f10"><div class="label">Enter encryption:</div><div class="row"><input class="input" type="password" autocomplete="off"/><button class="btn">VERIFY</button><span class="check">✓</span></div><div class="badge">Locked</div></div>
-      <div class="card" data-field="f11"><div class="label">Enter encryption:</div><div class="row"><input class="input" type="password" autocomplete="off"/><button class="btn">VERIFY</button><span class="check">✓</span></div><div class="badge">Locked</div></div>
-      <div class="card" data-field="f12"><div class="label">Enter encryption:</div><div class="row"><input class="input" type="password" autocomplete="off"/><button class="btn">VERIFY</button><span class="check">✓</span></div><div class="badge">Locked</div></div>
+    <div class="grid" id="grid">
+      <!-- 12 fields -->
+      <div class="field" data-field="f1">
+        <div class="label">Enter encryption:</div>
+        <div class="row">
+          <input class="input" type="password" autocomplete="off" placeholder="Enter encryption" />
+          <span class="check">✓</span>
+          <span class="marker">Decrypted</span>
+        </div>
+        <div class="hint">Press Enter to verify</div>
+      </div>
+
+      <div class="field" data-field="f2"><div class="label">Enter encryption:</div><div class="row"><input class="input" type="password" autocomplete="off" placeholder="Enter encryption" /><span class="check">✓</span><span class="marker">Decrypted</span></div><div class="hint">Press Enter to verify</div></div>
+      <div class="field" data-field="f3"><div class="label">Enter encryption:</div><div class="row"><input class="input" type="password" autocomplete="off" placeholder="Enter encryption" /><span class="check">✓</span><span class="marker">Decrypted</span></div><div class="hint">Press Enter to verify</div></div>
+      <div class="field" data-field="f4"><div class="label">Enter encryption:</div><div class="row"><input class="input" type="password" autocomplete="off" placeholder="Enter encryption" /><span class="check">✓</span><span class="marker">Decrypted</span></div><div class="hint">Press Enter to verify</div></div>
+      <div class="field" data-field="f5"><div class="label">Enter encryption:</div><div class="row"><input class="input" type="password" autocomplete="off" placeholder="Enter encryption" /><span class="check">✓</span><span class="marker">Decrypted</span></div><div class="hint">Press Enter to verify</div></div>
+      <div class="field" data-field="f6"><div class="label">Enter encryption:</div><div class="row"><input class="input" type="password" autocomplete="off" placeholder="Enter encryption" /><span class="check">✓</span><span class="marker">Decrypted</span></div><div class="hint">Press Enter to verify</div></div>
+      <div class="field" data-field="f7"><div class="label">Enter encryption:</div><div class="row"><input class="input" type="password" autocomplete="off" placeholder="Enter encryption" /><span class="check">✓</span><span class="marker">Decrypted</span></div><div class="hint">Press Enter to verify</div></div>
+      <div class="field" data-field="f8"><div class="label">Enter encryption:</div><div class="row"><input class="input" type="password" autocomplete="off" placeholder="Enter encryption" /><span class="check">✓</span><span class="marker">Decrypted</span></div><div class="hint">Press Enter to verify</div></div>
+      <div class="field" data-field="f9"><div class="label">Enter encryption:</div><div class="row"><input class="input" type="password" autocomplete="off" placeholder="Enter encryption" /><span class="check">✓</span><span class="marker">Decrypted</span></div><div class="hint">Press Enter to verify</div></div>
+      <div class="field" data-field="f10"><div class="label">Enter encryption:</div><div class="row"><input class="input" type="password" autocomplete="off" placeholder="Enter encryption" /><span class="check">✓</span><span class="marker">Decrypted</span></div><div class="hint">Press Enter to verify</div></div>
+      <div class="field" data-field="f11"><div class="label">Enter encryption:</div><div class="row"><input class="input" type="password" autocomplete="off" placeholder="Enter encryption" /><span class="check">✓</span><span class="marker">Decrypted</span></div><div class="hint">Press Enter to verify</div></div>
+      <div class="field" data-field="f12"><div class="label">Enter encryption:</div><div class="row"><input class="input" type="password" autocomplete="off" placeholder="Enter encryption" /><span class="check">✓</span><span class="marker">Decrypted</span></div><div class="hint">Press Enter to verify</div></div>
     </div>
   </main>
 

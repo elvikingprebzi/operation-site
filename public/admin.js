@@ -1,87 +1,67 @@
-function pretty(obj) {
-  return JSON.stringify(obj, null, 2);
+async function getJson(url) {
+  const r = await fetch(url);
+  return r.json();
 }
 
 async function postJson(url, body) {
-  const res = await fetch(url, {
+  const r = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body || {}),
   });
-  return res.json();
+  return r.json();
 }
 
-async function getJson(url) {
-  const res = await fetch(url);
-  return res.json();
+function pretty(x) {
+  return JSON.stringify(x, null, 2);
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
-  const fieldSelect = document.getElementById("fieldSelect");
-  const pwInput = document.getElementById("pwInput");
-  const out = document.getElementById("out");
-  const logOut = document.getElementById("logOut");
-
-  const setBtn = document.getElementById("setBtn");
-  const resetOneBtn = document.getElementById("resetOneBtn");
-  const resetAllBtn = document.getElementById("resetAllBtn");
-  const refreshBtn = document.getElementById("refreshBtn");
-  const refreshLogBtn = document.getElementById("refreshLogBtn");
+  const field = document.getElementById("field");
+  const pw = document.getElementById("pw");
+  const state = document.getElementById("state");
+  const log = document.getElementById("log");
 
   async function refreshState() {
     const data = await getJson("/api/admin/state");
-    out.textContent = pretty(data);
+    state.textContent = pretty(data);
   }
 
   async function refreshLog() {
     const data = await getJson("/api/admin/log?limit=200");
-    // show newest last in a readable way
-    if (!data.ok) {
-      logOut.textContent = pretty(data);
-      return;
-    }
-    logOut.textContent = data.lines.join("\n");
+    if (!data.ok) return (log.textContent = pretty(data));
+    log.textContent = data.lines.join("\n");
   }
 
-  refreshBtn.addEventListener("click", async () => {
-    await refreshState();
-  });
-
-  setBtn.addEventListener("click", async () => {
-    const fieldId = fieldSelect.value;
-    const password = (pwInput.value || "").trim();
-    if (!password) return;
-
-    const result = await postJson("/api/admin/set", { fieldId, password });
-    pwInput.value = "";
-    out.textContent = pretty(result);
-
+  document.getElementById("set").onclick = async () => {
+    const p = (pw.value || "").trim();
+    if (!p) return;
+    await postJson("/api/admin/set", { fieldId: field.value, password: p });
+    pw.value = "";
     await refreshState();
     await refreshLog();
-  });
+  };
 
-  resetOneBtn.addEventListener("click", async () => {
-    const fieldId = fieldSelect.value;
-    const result = await postJson("/api/admin/reset", { fieldId });
-    out.textContent = pretty(result);
-
+  document.getElementById("resetOne").onclick = async () => {
+    await postJson("/api/admin/reset", { fieldId: field.value });
     await refreshState();
     await refreshLog();
-  });
+  };
 
-  resetAllBtn.addEventListener("click", async () => {
-    const result = await postJson("/api/admin/reset", { fieldId: "all" });
-    out.textContent = pretty(result);
-
+  document.getElementById("resetAll").onclick = async () => {
+    await postJson("/api/admin/reset", { fieldId: "all" });
     await refreshState();
     await refreshLog();
-  });
+  };
 
-  refreshLogBtn.addEventListener("click", async () => {
+  document.getElementById("refresh").onclick = async () => {
+    await refreshState();
+  };
+
+  document.getElementById("refreshLog").onclick = async () => {
     await refreshLog();
-  });
+  };
 
-  // initial load
   await refreshState();
   await refreshLog();
 });

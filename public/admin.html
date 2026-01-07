@@ -3,55 +3,57 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Admin</title>
+  <title>System Admin</title>
   <link rel="stylesheet" href="./styles.css" />
+  <style>
+    .adminWrap{max-width:1200px;margin:0 auto;padding:26px}
+    .box{border:1px solid rgba(255,42,42,0.25); padding:18px; border-radius:8px; margin-top:18px}
+    .adminRow{display:flex; gap:10px; flex-wrap:wrap; align-items:center}
+    .btn{height:30px;padding:0 12px;border:1px solid rgba(255,255,255,0.14);background:transparent;color:rgba(255,255,255,0.85);cursor:pointer}
+    .btn:hover{border-color:rgba(255,255,255,0.28)}
+    pre{white-space:pre-wrap;word-break:break-word;max-height:380px;overflow:auto;background:rgba(255,255,255,0.02);padding:12px;border-radius:8px;border:1px solid rgba(255,255,255,0.08)}
+  </style>
 </head>
 <body>
   <header class="topbar">
     <div class="brand">SYSTEM ADMIN</div>
     <nav class="nav">
-      <a class="navlink" href="/" target="_blank" rel="noopener">PUBLIC SITE</a>
+      <a class="navlink" href="/">PUBLIC SITE</a>
     </nav>
   </header>
   <div class="rule"></div>
 
-  <main class="wrap">
-    <div class="adminBox">
+  <div class="adminWrap">
+    <div class="box">
       <div class="label">Passwords</div>
-
       <div class="adminRow">
-        <select id="fieldSelect" class="input">
+        <select id="field" class="input" style="max-width:120px">
           <option value="f1">f1</option><option value="f2">f2</option><option value="f3">f3</option>
           <option value="f4">f4</option><option value="f5">f5</option><option value="f6">f6</option>
           <option value="f7">f7</option><option value="f8">f8</option><option value="f9">f9</option>
           <option value="f10">f10</option><option value="f11">f11</option><option value="f12">f12</option>
         </select>
 
-        <input id="pwInput" class="input" type="text" placeholder="New password" />
-        <button id="setBtn" class="btn">SET</button>
+        <input id="pw" class="input" type="text" placeholder="New password" style="max-width:320px" />
+        <button id="set" class="btn">SET</button>
+        <button id="resetOne" class="btn">RESET FIELD</button>
+        <button id="resetAll" class="btn">RESET ALL</button>
+        <button id="refresh" class="btn">REFRESH</button>
       </div>
 
-      <div class="adminRow">
-        <button id="resetOneBtn" class="btn">RESET (LOCK) FIELD</button>
-        <button id="resetAllBtn" class="btn">RESET (LOCK) ALL</button>
-        <button id="refreshBtn" class="btn">REFRESH STATE</button>
-      </div>
-
-      <pre id="out" class="out"></pre>
+      <h3 style="margin-top:18px;color:rgba(255,255,255,0.8)">State</h3>
+      <pre id="state"></pre>
     </div>
 
-    <div style="height:16px"></div>
-
-    <div class="adminBox">
+    <div class="box">
       <div class="label">History log (append-only)</div>
       <div class="adminRow">
-        <button id="refreshLogBtn" class="btn">REFRESH LOG</button>
+        <button id="refreshLog" class="btn">REFRESH LOG</button>
       </div>
-      <pre id="logOut" class="out" style="max-height:340px"></pre>
+      <pre id="log"></pre>
     </div>
-  </main>
+  </div>
 
-  <!-- IMPORTANT: admin.js is now served from /admin.js behind auth -->
   <script src="/admin.js"></script>
 </body>
 </html>
