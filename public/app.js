@@ -5,6 +5,35 @@ const fields = Array.from({ length: 12 }, (_, i) => ({
   label: "Enter encryption:"
 }));
 
+// ===== PERSISTED PASSWORD STORAGE =====
+const STORAGE_PREFIX = "op_saved_pw_";
+const storageKey = (fieldId) => `${STORAGE_PREFIX}${fieldId}`;
+
+function savePassword(fieldId, value) {
+  try {
+    localStorage.setItem(storageKey(fieldId), value);
+  } catch {
+    // ignore (private mode / storage blocked)
+  }
+}
+
+function loadPassword(fieldId) {
+  try {
+    return localStorage.getItem(storageKey(fieldId)) || "";
+  } catch {
+    return "";
+  }
+}
+
+function clearPassword(fieldId) {
+  try {
+    localStorage.removeItem(storageKey(fieldId));
+  } catch {
+    // ignore
+  }
+}
+// ======================================
+
 function makeCard(field) {
   const card = document.createElement("div");
   card.className = "card";
@@ -16,32 +45,37 @@ function makeCard(field) {
       <div class="status">
         <span class="check" aria-hidden="true" style="display:none;">✅</span>
         <span class="badge">Locked</span>
-       
-        </div>
+      </div>
     </div>
     <input class="input" type="password" autocomplete="off" spellcheck="false" />
     <div class="hint">Press Enter to verify</div>
   `;
 
   const input = card.querySelector(".input");
-  
 
   input.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") verifyField(card, input.value);
+    if (e.key === "Enter") verifyField(card, input.value, { shouldStore: true });
   });
+
   input.addEventListener("blur", () => {
-    if (input.value.trim().length) verifyField(card, input.value);
+    if (input.value.trim().length) verifyField(card, input.value, { shouldStore: true });
   });
 
-
-  
+  // If we have a stored password, prefill and verify automatically
+  const saved = loadPassword(field.id);
+  if (saved) {
+    input.value = saved;
+    // verify after the element is in DOM
+    queueMicrotask(() => verifyField(card, saved, { shouldStore: false }));
+  }
 
   return card;
 }
 
-async function verifyField(card, value) {
+async function verifyField(card, value, opts = {}) {
   if (card.classList.contains("decrypted")) return;
 
+  const { shouldStore = false } = opts;
   const fieldId = card.dataset.fieldId;
 
   try {
@@ -50,10 +84,19 @@ async function verifyField(card, value) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ fieldId, value })
     });
-    const data = await res.json();
 
-    if (data.ok) setDecrypted(card);
-    else flashDenied(card);
+    const data = await res.json().catch(() => ({}));
+
+    if (data.ok) {
+      // Store ONLY when correct (and only on user action)
+      if (shouldStore) savePassword(fieldId, value);
+      setDecrypted(card);
+    } else {
+      // Optional: if a stored password is wrong (e.g. admin changed it), clear it
+      // This prevents it from "failing forever" on refresh.
+      if (!shouldStore) clearPassword(fieldId);
+      flashDenied(card);
+    }
   } catch {
     flashError(card);
   }
@@ -77,6 +120,9 @@ function resetCard(card) {
   const badge = card.querySelector(".badge");
   const check = card.querySelector(".check");
   const input = card.querySelector(".input");
+
+  // If you have a reset button elsewhere and you want it to also forget saved pw:
+  // clearPassword(card.dataset.fieldId);
 
   badge.textContent = "Locked";
   check.style.display = "none";
