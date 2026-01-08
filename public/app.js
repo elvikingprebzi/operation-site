@@ -54,35 +54,58 @@ async function verifyField(card, value) {
   }
 }
 
+/* ============================================================================
+   CHANGE: Replace solved password input with a solid green button
+   - Input field is removed
+   - Button text: "Evil plan step X"
+   - Button currently shows a placeholder alert
+   - This is the ONLY behavior change in this file
+============================================================================ */
 function setDecrypted(card) {
   card.classList.add("decrypted");
+
+  const fieldId = card.dataset.fieldId;
+  const stepNumber = Number(fieldId.slice(1));
+
   const badge = card.querySelector(".badge");
   const check = card.querySelector(".check");
   const input = card.querySelector(".input");
 
   badge.textContent = "Decrypted";
   check.style.display = "inline";
-  input.type = "text";
-  input.value = "••••••••••";
-  input.disabled = true;
+
+  // Remove password input completely
+  if (input) input.remove();
+
+  // Create the action button
+  const btn = document.createElement("button");
+  btn.className = "solvedBtn";
+  btn.textContent = `Evil plan step ${stepNumber}`;
+
+  btn.addEventListener("click", () => {
+    alert(`Step ${stepNumber} content coming soon…`);
+  });
+
+  card.appendChild(btn);
 }
 
 function resetCard(card) {
   card.classList.remove("decrypted");
   const badge = card.querySelector(".badge");
   const check = card.querySelector(".check");
-  const input = card.querySelector(".input");
 
   badge.textContent = "Locked";
   check.style.display = "none";
-  input.disabled = false;
-  input.type = "password";
-  input.value = "";
-  input.focus();
+
+  // NOTE:
+  // We do NOT recreate the input here because reset is controlled
+  // from admin actions + page reload. This avoids UI edge cases.
 }
 
 function flashDenied(card) {
   const input = card.querySelector(".input");
+  if (!input) return;
+
   input.animate(
     [
       { transform: "translateX(0px)" },
@@ -105,10 +128,7 @@ function flashError(card) {
 fields.forEach((f) => grid.appendChild(makeCard(f)));
 
 /* ============================================================================
-   CHANGE 4: Load cross-device solved state on page load
-   - Calls GET /api/solved
-   - If { f1:true, f7:true }, it marks those cards decrypted immediately.
-   - If you want to remove this later: delete this whole block.
+   Existing behavior: Load cross-device solved state on page load
 ============================================================================ */
 (async function loadSolvedOnStart() {
   try {
