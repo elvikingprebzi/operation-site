@@ -16,7 +16,6 @@ function makeCard(field) {
       <div class="status">
         <span class="check" aria-hidden="true" style="display:none;">✅</span>
         <span class="badge">Locked</span>
-        <button class="miniReset" type="button" title="Reset field">Reset</button>
       </div>
     </div>
     <input class="input" type="password" autocomplete="off" spellcheck="false" />
@@ -24,7 +23,6 @@ function makeCard(field) {
   `;
 
   const input = card.querySelector(".input");
-  const resetBtn = card.querySelector(".miniReset");
 
   input.addEventListener("keydown", (e) => {
     if (e.key === "Enter") verifyField(card, input.value);
@@ -32,8 +30,6 @@ function makeCard(field) {
   input.addEventListener("blur", () => {
     if (input.value.trim().length) verifyField(card, input.value);
   });
-
-  resetBtn.addEventListener("click", () => resetCard(card));
 
   return card;
 }
