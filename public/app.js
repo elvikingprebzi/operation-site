@@ -103,3 +103,25 @@ function flashError(card) {
 }
 
 fields.forEach((f) => grid.appendChild(makeCard(f)));
+
+/* ============================================================================
+   CHANGE 4: Load cross-device solved state on page load
+   - Calls GET /api/solved
+   - If { f1:true, f7:true }, it marks those cards decrypted immediately.
+   - If you want to remove this later: delete this whole block.
+============================================================================ */
+(async function loadSolvedOnStart() {
+  try {
+    const res = await fetch("/api/solved");
+    const solved = await res.json();
+
+    document.querySelectorAll(".card").forEach((card) => {
+      const fieldId = card.dataset.fieldId;
+      if (solved && solved[fieldId]) {
+        setDecrypted(card);
+      }
+    });
+  } catch {
+    // ignore; site should still work offline
+  }
+})();

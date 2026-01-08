@@ -10,14 +10,37 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-
 const PORT = process.env.PORT || 3001;
 
-// Set these later in hosting (and locally when you run it)
+// Admin auth (unchanged)
 const ADMIN_USER = process.env.ADMIN_USER || "admin";
 const ADMIN_PASS = process.env.ADMIN_PASS || "change-this";
 
 const PASSWORD_FILE = path.join(__dirname, "passwords.json");
+
+/* ============================================================================
+   CHANGE 1: Cross-device "solved state" storage (NOT passwords)
+   - Adds solved.json support so a correct entry stays solved across devices.
+   - If you want to remove this feature later:
+     - Delete SOLVED_FILE + readSolved/writeSolved functions
+     - Delete GET /api/solved route
+     - Delete the "if (ok) { ... }" block in POST /api/verify
+     - Delete the solved-clearing lines in admin clear routes (CHANGE 3)
+============================================================================ */
+const SOLVED_FILE = path.join(__dirname, "solved.json");
+
+function readSolved() {
+  try {
+    return JSON.parse(fs.readFileSync(SOLVED_FILE, "utf8"));
+  } catch {
+    return {};
+  }
+}
+
+function writeSolved(data) {
+  fs.writeFileSync(SOLVED_FILE, JSON.stringify(data, null, 2), "utf8");
+}
+// ============================================================================
 
 app.use(helmet());
 app.use(express.json());
@@ -60,6 +83,15 @@ app.use(express.static(publicDir));
 
 app.get("/api/health", (req, res) => res.json({ ok: true }));
 
+/* ============================================================================
+   CHANGE 2: Endpoint for cross-device solved status
+   - Frontend calls this on load to mark fields as already solved.
+============================================================================ */
+app.get("/api/solved", (req, res) => {
+  res.json(readSolved());
+});
+// ============================================================================
+
 // Verify a field entry (main page)
 app.post("/api/verify", async (req, res) => {
   try {
@@ -73,6 +105,18 @@ app.post("/api/verify", async (req, res) => {
     if (!hash) return res.json({ ok: false });
 
     const ok = await bcrypt.compare(value, hash);
+
+    /* ============================================================================
+       CHANGE 2 (continued): When correct, mark field as solved in solved.json
+       - This is what makes "correct entries stick" across devices.
+    ============================================================================ */
+    if (ok) {
+      const solved = readSolved();
+      solved[fieldId] = true;
+      writeSolved(solved);
+    }
+    // ============================================================================
+
     return res.json({ ok });
   } catch {
     return res.status(500).json({ ok: false, error: "Server error" });
@@ -114,6 +158,15 @@ app.post("/api/admin/clear", requireBasicAuth, (req, res) => {
   store.fields[fieldId] = null;
   writePasswords(store);
 
+  /* ============================================================================
+     CHANGE 3: Keep solved.json consistent with admin changes
+     - If an admin clears a field password, also mark that field as NOT solved.
+  ============================================================================ */
+  const solved = readSolved();
+  delete solved[fieldId];
+  writeSolved(solved);
+  // ============================================================================
+
   res.json({ ok: true });
 });
 
@@ -141,6 +194,13 @@ app.post("/api/admin/clearAll", requireBasicAuth, (req, res) => {
   const store = readPasswords();
   for (const k of Object.keys(store.fields)) store.fields[k] = null;
   writePasswords(store);
+
+  /* ============================================================================
+     CHANGE 3 (continued): If admin clears all passwords, clear solved.json too
+  ============================================================================ */
+  writeSolved({});
+  // ============================================================================
+
   res.json({ ok: true });
 });
 
