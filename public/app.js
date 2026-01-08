@@ -1,3 +1,11 @@
+/* =========================================================
+   Image map for solved steps (non-obvious filenames)
+========================================================= */
+const PLAN_IMAGES = {
+  f1: "/images/Step1fotjvjwovjtjdjw.png",
+  f2: "/images/Step2yyyejekcjdww2358djdnr.png"
+};
+
 const grid = document.getElementById("grid");
 
 const fields = Array.from({ length: 12 }, (_, i) => ({
@@ -83,8 +91,9 @@ function setDecrypted(card) {
   btn.textContent = `Evil plan step ${stepNumber}`;
 
   btn.addEventListener("click", () => {
-    alert(`Step ${stepNumber} content coming soon…`);
-  });
+  const url = PLAN_IMAGES[fieldId];
+  if (url) window.open(url, "_blank");
+});
 
   card.appendChild(btn);
 }
