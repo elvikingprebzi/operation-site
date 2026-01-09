@@ -88,6 +88,9 @@ app.get("/api/health", (req, res) => res.json({ ok: true }));
    - Frontend calls this on load to mark fields as already solved.
 ============================================================================ */
 app.get("/api/solved", (req, res) => {
+  res.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+  res.set("Pragma", "no-cache");
+  res.set("Expires", "0");
   res.json(readSolved());
 });
 // ============================================================================

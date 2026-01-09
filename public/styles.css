@@ -213,5 +213,22 @@ body{
 .solvedBtn:hover {
   background: #168a53;
 }
+/* =========================================================
+   Solved state button (public site only)
+========================================================= */
+.solvedBtn {
+  margin-top: 10px;
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #1fa463;
+  background: #1fa463;
+  color: #fff;
+  font-weight: 700;
+  border-radius: 6px;
+  cursor: pointer;
+}
 
+.solvedBtn:hover {
+  filter: brightness(0.95);
+}
 }
