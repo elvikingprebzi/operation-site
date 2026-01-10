@@ -42,6 +42,34 @@ function writeSolved(data) {
 }
 // ============================================================================
 
+/* ============================================================================
+   CHANGE 4: Log ALL password entry attempts (success + fail) to attemps.log
+   - Writes one JSON line per attempt (JSONL) into attemps.log (same folder as server.js)
+   - Note: On Render, file storage resets on redeploy unless you attach a Disk.
+============================================================================ */
+const ATTEMPTS_FILE = path.join(__dirname, "attemps.log");
+
+function getClientIp(req) {
+  // Works behind proxies like Render
+  const xff = req.headers["x-forwarded-for"];
+  if (typeof xff === "string" && xff.length) return xff.split(",")[0].trim();
+  return req.socket?.remoteAddress || null;
+}
+
+function logAttempt({ fieldId, value, ok, req }) {
+  const entry = {
+    time: new Date().toISOString(),
+    fieldId,
+    ok,
+    valueEntered: value,
+    ip: getClientIp(req),
+    userAgent: req.headers["user-agent"] || null
+  };
+
+  fs.appendFileSync(ATTEMPTS_FILE, JSON.stringify(entry) + "\n", "utf8");
+}
+// ============================================================================
+
 app.use(helmet());
 app.use(express.json());
 app.use(
@@ -108,6 +136,9 @@ app.post("/api/verify", async (req, res) => {
     if (!hash) return res.json({ ok: false });
 
     const ok = await bcrypt.compare(value, hash);
+
+    // CHANGE 4: Log ALL attempts (successful + failed)
+    logAttempt({ fieldId, value, ok, req });
 
     /* ============================================================================
        CHANGE 2 (continued): When correct, mark field as solved in solved.json
