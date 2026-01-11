@@ -66,7 +66,33 @@ function logAttempt({ fieldId, value, ok, req }) {
     userAgent: req.headers["user-agent"] || null
   };
 
-  fs.appendFileSync(ATTEMPTS_FILE, JSON.stringify(entry) + "\n", "utf8");
+  fs.appendFileSync(ATTEMPTS_FILE, JSON.stringify(entry) + "\n", "utf8")
+
+  // Admin: view attempts log in browser (and optionally download)
+app.get("/api/admin/attempts", requireBasicAuth, (req, res) => {
+  try {
+    if (!fs.existsSync(ATTEMPTS_FILE)) {
+      return res.status(404).json({ ok: false, error: "No log file yet" });
+    }
+
+    const data = fs.readFileSync(ATTEMPTS_FILE, "utf8");
+
+    // Optional: download as a file if ?download=1
+    const download = req.query.download === "1";
+
+    res.setHeader("Content-Type", "text/plain; charset=utf-8");
+    if (download) {
+      res.setHeader("Content-Disposition", 'attachment; filename="attemps.log"');
+    } else {
+      // Helps prevent caching so you always see latest attempts
+      res.setHeader("Cache-Control", "no-store");
+    }
+
+    return res.status(200).send(data);
+  } catch {
+    return res.status(500).json({ ok: false, error: "Could not read log file" });
+  }
+});
 }
 // ============================================================================
 
