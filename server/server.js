@@ -47,7 +47,7 @@ function writeSolved(data) {
    - Writes one JSON line per attempt (JSONL) into attemps.log (same folder as server.js)
    - Note: On Render, file storage resets on redeploy unless you attach a Disk.
 ============================================================================ */
-const ATTEMPTS_FILE = path.join(__dirname, "attemps.log");
+const ATTEMPTS_FILE = "/data/attemps.log";
 
 function getClientIp(req) {
   // Works behind proxies like Render
