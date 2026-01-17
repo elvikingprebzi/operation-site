@@ -3,7 +3,8 @@
 ========================================================= */
 const PLAN_IMAGES = {
   f1: "/images/Step1fotjvjwovjtjdjw.png",
-  f2: "/images/Step2yyyejekcjdww2358djdnr.png"
+  f2: "/images/Step2yyyejekcjdww2358djdnr.png",
+  f3: "/images/Step3ncncndjdj384jfndnd.png",
 };
 
 const grid = document.getElementById("grid");
