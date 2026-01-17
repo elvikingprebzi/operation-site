@@ -231,4 +231,52 @@ body{
 .solvedBtn:hover {
   filter: brightness(0.95);
 }
+/* =========================
+   FIX: Decrypted button layout on desktop
+   - Keeps mobile looking the same
+   - Ensures desktop shows the green "open image" button properly
+========================= */
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.card .labelrow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+/* When solved, hide the old input cleanly (if still present) */
+.card.decrypted .input {
+  display: none !important;
+}
+
+/* The new green open-image button */
+.card .openStepBtn {
+  display: block;
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(0,0,0,0.25);
+  font-weight: 700;
+  cursor: pointer;
+  text-align: left;
+}
+
+/* Ensure it doesn't get collapsed by grid/flex rules on desktop */
+.card.decrypted .openStepBtn {
+  flex: 0 0 auto;
+}
+
+/* Desktop-only: cards often get a fixed height – remove it */
+@media (min-width: 900px) {
+  .card {
+    height: auto !important;
+    min-height: 0 !important;
+  }
+}
 }
