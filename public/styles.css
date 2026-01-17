@@ -198,6 +198,7 @@ body{
 
   .label{ font-size: 18px; }
   .input{ height: 48px; font-size: 16px; }
+  }
 
   .solvedBtn {
   margin-top: 10px;
@@ -278,5 +279,4 @@ body{
     height: auto !important;
     min-height: 0 !important;
   }
-}
 }
